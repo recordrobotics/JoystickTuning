@@ -193,7 +193,9 @@
                     clearTimeout(urlUpdateTimeout);
                 }
                 urlUpdateTimeout = setTimeout(() => {
-                    const encoded = encodeFloatArray(rawPositions.subarray(0, pointsAddedCount * 3));
+                    const limit = 800;
+                    const amountOverLimit = Math.max(0, pointsAddedCount - limit);
+                    const encoded = encodeFloatArray(rawPositions.subarray(amountOverLimit * 3, Math.min(pointsAddedCount, limit) * 3));
                     updateQueryParam('d', encoded);
                 }, 100); // Update URL after 100ms of inactivity
             }
