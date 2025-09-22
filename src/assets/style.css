@@ -34,6 +34,7 @@ body {
 
 .frame {
     padding: var(--padding);
+    width: 100%;
 }
 
 .container {
@@ -49,6 +50,7 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 1;
+    min-height: 300px;
 }
 
 .header {
@@ -63,12 +65,13 @@ body {
     width: 100%;
     overflow: hidden;
     border-radius: var(--radius);
+    display: flex;
+    justify-content: center;
 }
 
 .graph canvas {
     width: 100%;
     aspect-ratio: 1;
-    height: auto;
     display: flex;
     align-items: center;
     justify-content: center;

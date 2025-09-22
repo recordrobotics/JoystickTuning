@@ -207,6 +207,19 @@
 
             renderer.render(scene, camera);
 
+            // Create resize observer for canvas
+            const resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    const { width, height } = entry.contentRect;
+                    renderer.setSize(width, height, false);
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    renderer.render(scene, camera);
+                }
+            });
+
+            resizeObserver.observe(graphCanvas);
+
             let lastAxis = [0, 0, 0];
 
             function updateStatus(gamepad) {
