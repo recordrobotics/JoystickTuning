@@ -151,6 +151,13 @@
             pointsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             const pointsMaterial = new THREE.PointsMaterial({ size: 0.2, vertexColors: true });
             const points = new THREE.Points(pointsGeometry, pointsMaterial);
+            // Set bounding box and sphere to grid size to avoid Three.js frustum culling/clipping
+            const halfGrid = gridSize / 2;
+            pointsGeometry.boundingBox = new THREE.Box3(
+                new THREE.Vector3(-halfGrid, -halfGrid, -halfGrid),
+                new THREE.Vector3(halfGrid, halfGrid, halfGrid)
+            );
+            pointsGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), Math.sqrt(3) * halfGrid);
             scene.add(points);
             // --- End Point Cloud ---
 
