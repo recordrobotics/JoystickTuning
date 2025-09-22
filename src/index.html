@@ -18,7 +18,9 @@
         {
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+                "pako": "https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs",
+                "fp16": "https://cdn.jsdelivr.net/npm/fp16@1.0.0/lib/index.js"
             }
         }
     </script>
@@ -28,6 +30,20 @@
         import { ArcballControls } from 'three/addons/controls/ArcballControls.js';
 
         import colormap from './scripts/colormap/colormap.js';
+        import { encodeFloatArray, decodeFloatArray } from './scripts/encoder.js';
+
+        function updateQueryParam(key, value) {
+            const url = new URL(window.location); // current URL
+            url.searchParams.set(key, value); // add or update the parameter
+
+            // Update the URL without reloading the page
+            window.history.replaceState({}, '', url);
+        }
+
+        function getQueryParam(key) {
+            const url = new URL(window.location);
+            return url.searchParams.get(key);
+        }
 
         const viridisMap = colormap({
             colormap: 'viridis',
@@ -144,6 +160,7 @@
             const pointCount = 10000;
             let pointsAddedCount = 0;
             let currentPoint = 0;
+            const rawPositions = new Float32Array(pointCount * 3); // x, y, z
             const positions = new Float32Array(pointCount * 4);
             const colors = new Float32Array(pointCount * 3);
             const pointsGeometry = new THREE.BufferGeometry();
@@ -169,7 +186,23 @@
             controls.maxDistance = 20;
             controls.minDistance = 1;
 
-            function addPoint(x, y, z) {
+            let urlUpdateTimeout = null;
+
+            function updateUrl() {
+                if (urlUpdateTimeout) {
+                    clearTimeout(urlUpdateTimeout);
+                }
+                urlUpdateTimeout = setTimeout(() => {
+                    const encoded = encodeFloatArray(rawPositions.subarray(0, pointsAddedCount * 3));
+                    updateQueryParam('d', encoded);
+                }, 100); // Update URL after 100ms of inactivity
+            }
+
+            function addPoint(x, y, z, render) {
+                rawPositions[currentPoint * 3 + 0] = x;
+                rawPositions[currentPoint * 3 + 1] = y;
+                rawPositions[currentPoint * 3 + 2] = z;
+
                 positions[currentPoint * 4 + 0] = x * gridSize / 2; // x
                 positions[currentPoint * 4 + 1] = y * gridSize / 2; // y
                 positions[currentPoint * 4 + 3] = z;
@@ -205,7 +238,10 @@
                 pointsGeometry.attributes.color.needsUpdate = true;
                 pointsGeometry.setDrawRange(0, pointsAddedCount);
 
-                renderer.render(scene, camera);
+                if (render) {
+                    renderer.render(scene, camera);
+                    updateUrl();
+                }
             }
 
             controls.addEventListener('change', function () {
@@ -239,7 +275,7 @@
                     `Buttons: [${buttons.join(', ')}]`;
                 if (axes[0] !== lastAxis[0] || axes[1] !== lastAxis[1] || axes[2] !== lastAxis[2]) {
                     lastAxis = axes;
-                    addPoint(axes[0], -axes[1], axes[2]);
+                    addPoint(axes[0], -axes[1], axes[2], true);
                 }
             }
 
@@ -270,8 +306,27 @@
                 pointsGeometry.attributes.color.needsUpdate = true;
                 pointsGeometry.setDrawRange(0, pointsAddedCount);
 
+                updateUrl();
+
                 renderer.render(scene, camera);
             });
+
+            const providedData = getQueryParam('d');
+            if (providedData) {
+                const decoded = decodeFloatArray(providedData);
+                for (let i = 0; i < decoded.length / 3; i++) {
+                    const x = decoded[i * 3 + 0];
+                    const y = decoded[i * 3 + 1];
+                    const z = decoded[i * 3 + 2];
+                    addPoint(x, y, z, false);
+                }
+
+                console.log("Loaded " + pointsAddedCount + " points from URL.");
+
+                if (pointsAddedCount > 0) {
+                    renderer.render(scene, camera);
+                }
+            }
         });
     </script>
 </head>
