@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>joystick Tuning</title>
+    <!-- Import Roboto font from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./assets/style.css">
+    <link rel="icon" type="image/png" href="./assets/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <link rel="shortcut icon" href="./assets/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Joystick Tuning" />
+    <link rel="manifest" href="./assets/site.webmanifest" />
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import { GamepadManager, CustomGamepad, LogitechGExtreme3DPro } from "./scripts/gamepad.js";
+        import * as THREE from 'three';
+        import { ArcballControls } from 'three/addons/controls/ArcballControls.js';
+
+        import colormap from './scripts/colormap/colormap.js';
+
+        const viridisMap = colormap({
+            colormap: 'viridis',
+            nshades: 256,
+            format: 'float',
+            alpha: 1
+        });
+
+        // Sample function
+        function viridis(t) {
+            const n = viridisMap.length;
+            const idx = Math.floor(t * (n - 1));
+            return viridisMap[idx];
+        }
+
+        const gamepadManager = new GamepadManager();
+        gamepadManager.registerCustomGamepad(LogitechGExtreme3DPro);
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // --- Helper to create axis label sprite ---
+            function createTextSprite(text, color = '#222', fontSize = 64) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                const texture = new THREE.CanvasTexture(canvas);
+                const draw = (str) => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.font = `bold ${fontSize}px Roboto, Arial, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = color;
+                    ctx.fillText(str, canvas.width / 2, canvas.height / 2);
+                    texture.needsUpdate = true;
+                };
+                draw(text);
+                const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+                const sprite = new THREE.Sprite(material);
+                sprite.scale.set(1.5, 0.75, 1); // Adjust size as needed
+                return { sprite, draw };
+            }
+
+            const status = document.getElementById('status');
+            const resetButton = document.getElementById('reset');
+            const graphCanvas = document.getElementById('graph-canvas');
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, graphCanvas.clientWidth / graphCanvas.clientHeight, 0.01, 100);
+
+            const renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                canvas: graphCanvas,
+                alpha: true
+            });
+            renderer.setSize(graphCanvas.clientWidth, graphCanvas.clientHeight, false);
+
+            const gridSize = 10;
+
+            // --- Add 3D Axes as lines ---
+            const axesMaterial = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
+            const axesPoints = new Float32Array([
+                -gridSize / 2, 0, 0, gridSize / 2, 0, 0, // X axis
+                0, -gridSize / 2, 0, 0, gridSize / 2, 0, // Y axis
+                0, 0, -gridSize / 2, 0, 0, gridSize / 2  // Z axis
+            ]);
+            const axesGeometry = new THREE.BufferGeometry();
+            axesGeometry.setAttribute('position', new THREE.BufferAttribute(axesPoints, 3));
+            const axesLines = new THREE.LineSegments(axesGeometry, axesMaterial);
+            scene.add(axesLines);
+
+            let minZ = gridSize / 2;
+            let maxZ = -gridSize / 2;
+
+            // --- Add Axis Labels ---
+            const xLabelP = createTextSprite((1).toFixed(), '#242424');
+            xLabelP.sprite.position.set(gridSize / 2 + 0.7, 0, 0);
+            scene.add(xLabelP.sprite);
+            const xLabelN = createTextSprite((-1).toFixed(), '#242424');
+            xLabelN.sprite.position.set(-gridSize / 2 - 0.7, 0, 0);
+            scene.add(xLabelN.sprite);
+
+            const yLabelN = createTextSprite((-1).toFixed(), '#242424');
+            yLabelN.sprite.position.set(0, gridSize / 2 + 0.7, 0);
+            scene.add(yLabelN.sprite);
+            const yLabelP = createTextSprite((1).toFixed(), '#242424');
+            yLabelP.sprite.position.set(0, -gridSize / 2 - 0.7, 0);
+            scene.add(yLabelP.sprite);
+
+            const zLabelP = createTextSprite(maxZ < 0 ? "--" : maxZ.toFixed(2), '#242424');
+            zLabelP.sprite.position.set(0, 0, gridSize / 2 + 0.7);
+            scene.add(zLabelP.sprite);
+            const zLabelN = createTextSprite(minZ > 0 ? "--" : minZ.toFixed(2), '#242424');
+            zLabelN.sprite.position.set(0, 0, -gridSize / 2 - 0.7);
+            scene.add(zLabelN.sprite);
+
+            // --- Add Grid (XY, XZ, YZ planes) ---
+            const gridDivisions = 5;
+            // XY grid (Z=0)
+            const gridXY = new THREE.GridHelper(gridSize, gridDivisions, 0xcccccc, 0xcccccc);
+            gridXY.position.z = -gridSize / 2;
+            gridXY.rotation.x = Math.PI / 2;
+            scene.add(gridXY);
+            // XZ grid (Y=0)
+            const gridXZ = new THREE.GridHelper(gridSize, gridDivisions, 0xcccccc, 0xcccccc);
+            gridXZ.position.y = -gridSize / 2;
+            scene.add(gridXZ);
+            // YZ grid (X=0)
+            const gridYZ = new THREE.GridHelper(gridSize, gridDivisions, 0xcccccc, 0xcccccc);
+            gridYZ.rotation.z = Math.PI / 2;
+            gridYZ.position.x = -gridSize / 2;
+            scene.add(gridYZ);
+
+            // --- Add Point Cloud ---
+            const pointCount = 10000;
+            let pointsAddedCount = 0;
+            let currentPoint = 0;
+            const positions = new Float32Array(pointCount * 4);
+            const colors = new Float32Array(pointCount * 3);
+            const pointsGeometry = new THREE.BufferGeometry();
+            pointsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 4));
+            pointsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const pointsMaterial = new THREE.PointsMaterial({ size: 0.2, vertexColors: true });
+            const points = new THREE.Points(pointsGeometry, pointsMaterial);
+            scene.add(points);
+            // --- End Point Cloud ---
+
+            camera.position.set(1, 1, 12);
+
+            const controls = new ArcballControls(camera, renderer.domElement, scene);
+            controls.setGizmosVisible(false);
+            controls.adjustNearFar = true;
+            controls.maxDistance = 20;
+            controls.minDistance = 1;
+
+            function addPoint(x, y, z) {
+                positions[currentPoint * 4 + 0] = x * gridSize / 2; // x
+                positions[currentPoint * 4 + 1] = y * gridSize / 2; // y
+                positions[currentPoint * 4 + 3] = z;
+
+                if (z < minZ) minZ = z;
+                if (z > maxZ) maxZ = z;
+
+                if (maxZ - minZ < 0.01) {
+                    // avoid degenerate case
+                    maxZ = minZ + 0.01;
+                }
+
+                currentPoint = (currentPoint + 1) % pointCount;
+                pointsAddedCount = Math.min(pointsAddedCount + 1, pointCount);
+
+                const extentZ = Math.max(0.01, Math.max(Math.abs(minZ), Math.abs(maxZ)));
+                // Update Z labels
+                zLabelP.draw(extentZ.toFixed(2));
+                zLabelN.draw((-extentZ).toFixed(2));
+
+                for (let i = 0; i < pointsAddedCount; i++) {
+                    const thisZ = positions[i * 4 + 3];
+                    positions[i * 4 + 2] = thisZ / extentZ * (gridSize / 2); // z
+
+                    const color = viridis(Math.max(0, Math.min(1, (thisZ - minZ) / (maxZ - minZ))));
+                    colors[i * 3 + 0] = color[0];
+                    colors[i * 3 + 1] = color[1];
+                    colors[i * 3 + 2] = color[2];
+                }
+
+                // updates
+                pointsGeometry.attributes.position.needsUpdate = true;
+                pointsGeometry.attributes.color.needsUpdate = true;
+                pointsGeometry.setDrawRange(0, pointsAddedCount);
+
+                renderer.render(scene, camera);
+            }
+
+            controls.addEventListener('change', function () {
+                renderer.render(scene, camera);
+            });
+
+            renderer.render(scene, camera);
+
+            let lastAxis = [0, 0, 0];
+
+            function updateStatus(gamepad) {
+                const axes = LogitechGExtreme3DPro.getAxis(gamepad);
+                const pov = LogitechGExtreme3DPro.getPOV(gamepad);
+                const buttons = gamepad.buttons.map(b => b.pressed ? '1' : '0');
+                status.textContent =
+                    `Axes:    [${axes.map(a => a.toFixed(2)).join(', ')}]\n` +
+                    `POV:     ${pov !== null ? (pov['POV+Y'] ? "+Y" : pov['POV-Y'] ? "-Y" : pov['POV+X'] ? '+X' : pov['POV-X'] ? '-X' : '0') : 'N/A'}\n` +
+                    `Buttons: [${buttons.join(', ')}]`;
+                if (axes[0] !== lastAxis[0] || axes[1] !== lastAxis[1] || axes[2] !== lastAxis[2]) {
+                    lastAxis = axes;
+                    addPoint(axes[0], -axes[1], axes[2]);
+                }
+            }
+
+            // When a gamepad is connected, subscribe to its updates:
+            window.addEventListener('gamepadconnected', (e) => {
+                const connected = gamepadManager.getConnectedGamepads();
+                for (const gp of connected) {
+                    if (gp.id === 'LogitechGExtreme3DPro') {
+                        gamepadManager.subscribe(gp.index, updateStatus);
+                    }
+                }
+            });
+
+            resetButton.addEventListener('click', (e) => {
+                e.preventDefault();
+
+                currentPoint = 0;
+                pointsAddedCount = 0;
+                minZ = gridSize / 2;
+                maxZ = -gridSize / 2;
+
+                const extentZ = Math.max(0.01, Math.max(Math.abs(minZ), Math.abs(maxZ)));
+                // Update Z labels
+                zLabelP.draw(extentZ.toFixed(2));
+                zLabelN.draw((-extentZ).toFixed(2));
+
+                pointsGeometry.attributes.position.needsUpdate = true;
+                pointsGeometry.attributes.color.needsUpdate = true;
+                pointsGeometry.setDrawRange(0, pointsAddedCount);
+
+                renderer.render(scene, camera);
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <div class="frame">
+        <div class="container">
+            <div class="header">
+                <h1>Joystick Tuning</h1>
+                <pre id="status">Connect the joystick and press any button...&NewLine;or you can use your mouse.</pre>
+                <a href="#" class="button" id="reset">Reset</a>
+            </div>
+            <div class="graph">
+                <canvas id="graph-canvas" width="1024" height="1024">
+                    Please enable JavaScript to view the graph.
+                </canvas>
+            </div>
+        </div>
+    </div>
+    <footer id="footer">
+        <img src="./assets/logo.png" alt="Logo" class="logo" />
+        <p>Made with <span class="heart">♥</span> by <a href="https://www.recordrobotics.org/" target="_blank">Record
+                Robotics</a></p>
+    </footer>
+</body>
+
+</html>
