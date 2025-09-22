@@ -58,6 +58,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .graph {
@@ -184,5 +185,17 @@ footer p {
 @media(max-height: 460px) {
     footer {
         display: none;
+    }
+}
+
+@media(max-width: 660px) {
+    .frame {
+        --padding: 1rem;
+    }
+}
+
+@media(max-width: 460px) {
+    .container {
+        padding: 1.0rem 1.0rem;
     }
 }
