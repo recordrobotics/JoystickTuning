@@ -34,15 +34,9 @@
 
         function updateQueryParam(key, value) {
             const url = new URL(window.location); // current URL
-            url.searchParams.set(key, value); // add or update the parameter
-
+            url.search = "?d=" + value; // replace temp value with actual value
             // Update the URL without reloading the page
             window.history.replaceState({}, '', url);
-        }
-
-        function getQueryParam(key) {
-            const url = new URL(window.location);
-            return url.searchParams.get(key);
         }
 
         const viridisMap = colormap({
@@ -313,7 +307,7 @@
                 renderer.render(scene, camera);
             });
 
-            const providedData = getQueryParam('d');
+            const providedData = decodeURIComponent(location.href.substring(location.href.indexOf("d=") + 2));
             if (providedData) {
                 const decoded = decodeFloatArray(providedData);
                 for (let i = 0; i < decoded.length / 3; i++) {

@@ -2,7 +2,7 @@ import { deflate, inflate } from "pako";
 import { setFloat16, getFloat16 } from "fp16";
 
 // --- Z85 (Base85 URL-safe) implementation ---
-const Z85_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#";
+const Z85_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+_^!/*?=<>()[]{}@|$#";
 const Z85_VALUES = Object.fromEntries([...Z85_CHARS].map((c, i) => [c, i]));
 
 // Encode Uint8Array -> Z85 string
